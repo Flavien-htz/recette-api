@@ -70,4 +70,14 @@ public class ImageService {
             throw new RuntimeException("Error: " + ex.getMessage());
         }
     }
+
+    public void deleteImage(String filename) {
+        try {
+            Path fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path filePath = fileStorageLocation.resolve(filename);
+            Files.deleteIfExists(filePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lors de la suppression de l'image: " + filename, e);
+        }
+    }
 }

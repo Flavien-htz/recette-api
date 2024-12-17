@@ -66,8 +66,6 @@ public class RecetteController {
             @RequestPart("file") MultipartFile file,
             @RequestParam("recette") String recetteBody) {
         try {
-//            System.out.println("File: " + (file != null ? file.getOriginalFilename() : "No file"));
-//            System.out.println("Recette JSON: " + recetteBody);
 
             if (file.getSize() > 2000 * 1024) {
                 return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(Map.of("message", "Le fichier est trop volumineux"));
@@ -106,6 +104,9 @@ public class RecetteController {
     public ResponseEntity<Void> delete(@PathVariable int id) {
         return recetteRepository.findById(id)
                 .map(recette -> {
+                    if (recette.getImageFilename() != null) {
+                        imageService.deleteImage(recette.getImageFilename());
+                    }
                     recetteRepository.delete(recette);
                     return new ResponseEntity<Void>(HttpStatus.OK);
                 })
@@ -113,53 +114,65 @@ public class RecetteController {
     }
 
 
-//    @PutMapping("/recette")
-//    public ResponseEntity<Recette> update(
-//            @RequestPart("file") MultipartFile file,
-//            @RequestParam("recette") String recetteBody) {
-//        try {
-//            ObjectMapper objectMapper = new ObjectMapper();
-//
-//            // Convertir en objet Recette
-//            Recette recetteObj = objectMapper.readValue(recetteBody, Recette.class);
-//
-//            Recette recette = recetteRepository.findById(recetteObj.getId()).orElse(null);
-//            if (recette == null) {
-//                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-//            } else {
-//
-//                if (recette.equals(recetteObj)) {
-//                    return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
-//                }
-//
-//                if (recetteObj.getNom() != null) {
-//                    recette.setNom(recetteObj.getNom());
-//                }
-//                if (recetteObj.getDescription() != null) {
-//                    recette.setDescription(recetteObj.getDescription());
-//                }
-//                if (recetteObj.getIngredients() != null) {
-//                    recette.setIngredients(recetteObj.getIngredients());
-//                }
-//
-//                //         Gérer le téléchargement de l'image
-//                if (file != null && !file.isEmpty()) {
-//                    String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-//                    Path filePath = Paths.get(recette.getUploadDir() + fileName);
-//                    Files.createDirectories(filePath.getParent());
-//                    Files.write(filePath, file.getBytes());
-//                    recette.setImageUrl(filePath.toString());
-//                }
-//
-//                recetteRepository.save(recette);
-//
-//                return new ResponseEntity<>(recette, HttpStatus.OK);
-//
-//            }
-//        } catch (IOException e) {
-//            System.out.println(e.getMessage());
-//            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-//        }
-//    }
+    @PutMapping("/recette")
+    public ResponseEntity<Map<String, Object>> update(
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "recette", required = false) String recetteBody) {
+        try {
+            if (file != null) {
+                if (file.getSize() > 2000 * 1024) {
+                    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                        .body(Map.of("message", "Le fichier est trop volumineux"));
+                }
+            }
 
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            // Convertir en objet Recette
+            Recette recetteObj = objectMapper.readValue(recetteBody, Recette.class);
+
+            Recette recette = recetteRepository.findById(recetteObj.getId()).orElse(null);
+            if (recette == null) {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+
+                if (recette.equals(recetteObj)) {
+                    return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
+                }
+
+            // Mise à jour des champs textuels
+            if (recetteObj.getNom() != null) recette.setNom(recetteObj.getNom());
+            if (recetteObj.getDescription() != null) recette.setDescription(recetteObj.getDescription());
+            if (recetteObj.getIngredients() != null) recette.setIngredients(recetteObj.getIngredients());
+
+            // Gestion de l'image
+            if (file != null) {
+                ResponseEntity<Map<String, String>> response = imageService.uploadImage(file);
+                if (response.getStatusCode() == HttpStatus.OK) {
+                    // Supprimer l'ancienne image si elle existe
+                    String oldImageFilename = recette.getImageFilename();
+                    if (oldImageFilename != null) {
+                        imageService.deleteImage(oldImageFilename);
+                    }
+
+                    // Mettre à jour avec la nouvelle image
+                    Map<String, String> responseMap = response.getBody();
+                    assert responseMap != null;
+                    String filename = responseMap.get("filename");
+                    recette.setImageFilename(filename);
+                } else {
+                    return ResponseEntity.status(response.getStatusCode())
+                        .body(Map.of("message", "Une erreur est survenue à cause de l'image", "recette", recette));
+                }
+            }
+
+            recetteRepository.save(recette);
+            return ResponseEntity.status(HttpStatus.OK)
+                .body(Map.of("message", "Recette modifiée", "recette", recette));
+
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
