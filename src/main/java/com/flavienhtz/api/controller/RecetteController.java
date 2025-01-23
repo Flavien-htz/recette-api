@@ -53,7 +53,6 @@ public class RecetteController {
     @GetMapping("/recettes")
     public ResponseEntity<List<Recette>> getAll() {
         List<Recette> recettes = recetteRepository.findAll();
-
         if (recettes.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         } else {

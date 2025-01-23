@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 
 @Component
@@ -35,4 +36,14 @@ public class Recette {
     @Column(columnDefinition = "JSON")
     private List<Ingredient> ingredients;
     private String imageFilename;
+
+
+    @ManyToMany
+    @JoinTable(
+            name = "recette_menu",
+            joinColumns = @JoinColumn(name = "recette_id"),
+            inverseJoinColumns = @JoinColumn(name = "menu_id")
+    )
+    @Column(nullable = true)
+    private Set<Menu> menus;
 }
